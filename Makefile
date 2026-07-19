@@ -1,6 +1,12 @@
 # Global definitions
 platform   ?= unix
 
+# EROS Q (Ingenic X1000): no-SDL backend (raw DRM + evdev + ALSA). Selecting
+# it steers off the SDL platform branch below.
+ifeq ($(EROSQ), 1)
+platform := erosq
+endif
+
 CC        = $(CROSS_COMPILE)gcc
 SYSROOT   = $(shell $(CC) --print-sysroot)
 
@@ -12,7 +18,10 @@ BIN       = picoarch
 
 CFLAGS     += -Wall
 CFLAGS     += -fdata-sections -ffunction-sections -DPICO_HOME_DIR='"/.picoarch/"' -flto
-CFLAGS     += -I./ -I./libretro-common/include/ $(shell $(SYSROOT)/usr/bin/sdl-config --cflags)
+CFLAGS     += -I./ -I./libretro-common/include/
+ifneq ($(EROSQ), 1)
+CFLAGS     += $(shell $(SYSROOT)/usr/bin/sdl-config --cflags)
+endif
 
 LDFLAGS    = -lc -ldl -lgcc -lm -lSDL -lpng12 -lz -Wl,--gc-sections -flto
 
@@ -107,6 +116,30 @@ ifeq ($(MMENU), 1)
 	LDFLAGS += -lSDL_image -lSDL_ttf -ldl
 endif
 
+ifeq ($(EROSQ), 1)
+# Swap the SDL frontend + libpng font loader for the raw DRM/evdev/ALSA backend.
+# scaler_neon.c is ARM NEON asm; the EROSQ (MIPS) build uses a C scaler instead.
+OBJS := $(filter-out libpicofe/in_sdl.o libpicofe/readpng.o scaler_neon.o, $(OBJS))
+OBJS += plat_erosq/plat_erosq.o plat_erosq/drm_out.o plat_erosq/readpng_stub.o plat_erosq/scaler_c.o plat_erosq/libgcc_helpers.o
+CFLAGS  += -DEROSQ -Iplat_erosq
+# No SDL, no libpng. The prebuilt libretro cores (esp. static-PIE gpsp) leave
+# libgcc arithmetic helpers unresolved, expecting this host binary to supply
+# them at dlopen (musl's libc.so does not). -Wl,-u forces each into the link
+# from libgcc (the trailing -lgcc is searched after the -u refs) and -rdynamic
+# exports them in .dynsym so the cores' dlopen resolves against us.
+#   gpsp:     __bswapsi2 __fixdfdi __udivdi3
+#   gambatte: __divdi3 __udivdi3 __umoddi3
+# (_flush_cache and the musl time64 symbols resolve from libc.so.)
+GCC_HELPERS = __fixdfdi __bswapsi2 __udivdi3 __divdi3 __umoddi3
+LDFLAGS := $(filter-out -lSDL -lpng12,$(LDFLAGS))
+LDFLAGS += -lasound -rdynamic $(foreach s,$(GCC_HELPERS),-Wl,-u,$(s)) -lgcc
+# Disable LTO for EROSQ: whole-program LTO demotes the force-linked libgcc
+# helpers to LOCAL symbols, which -rdynamic then cannot export (the cores'
+# dlopen would fail to resolve them). Per-TU -Ofast still applies.
+CFLAGS  := $(filter-out -flto,$(CFLAGS))
+LDFLAGS := $(filter-out -flto,$(LDFLAGS))
+endif
+
 CFLAGS += $(EXTRA_CFLAGS)
 
 SOFILES = $(foreach core,$(CORES),$(core)_libretro.so)
@@ -126,7 +159,15 @@ plat_miyoomini.o: plat_sdl.c
 plat_trimui.o: plat_sdl.c
 plat_linux.o: plat_sdl.c
 
-$(BIN): libpicofe/.patched $(OBJS)
+# The libpicofe key-combos patch is SDL-input only; the EROSQ backend doesn't
+# use in_sdl, so skip it (avoids needing libpicofe to be a git tree).
+ifeq ($(EROSQ), 1)
+BIN_PREREQ =
+else
+BIN_PREREQ = libpicofe/.patched
+endif
+
+$(BIN): $(BIN_PREREQ) $(OBJS)
 	$(CC) $(OBJS) $(LDFLAGS) -o $(BIN)
 
 define CORE_template =

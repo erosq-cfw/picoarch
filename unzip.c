@@ -162,7 +162,9 @@ int unzip_tmp(FILE *zip, const char **extensions, char *filename, size_t len) {
 
 	if (!find_entry(zip, extensions, &info)) {
 		int fd = 0;
-		snprintf(filename, len, "/tmp/pa-XXXXXX%s", basename(info.filename));
+		const char *base = strrchr(info.filename, '/');
+		base = base ? base + 1 : info.filename;
+		snprintf(filename, len, "/tmp/pa-XXXXXX%s", base);
 
 		fd = mkstemps(filename, strlen(info.filename));
 		dest = fdopen(fd, "w");

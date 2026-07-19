@@ -551,8 +551,10 @@ static int16_t pa_input_state(unsigned port, unsigned device, unsigned index, un
 
 void core_extract_name(const char* core_file, char *buf, size_t len) {
 	char *suffix = NULL;
+	const char *base = strrchr(core_file, '/');
+	base = base ? base + 1 : core_file;
 
-	strncpy(buf, basename(core_file), MAX_PATH);
+	strncpy(buf, base, MAX_PATH);
 	buf[len - 1] = 0;
 
 	suffix = strrchr(buf, '_');
