@@ -31,12 +31,14 @@ plat_dummy-style raw-framebuffer/DRM backend to copy** the way pcsx_rearmed's
 
 Consequence for later tasks: `plat_erosq.c` for picoarch must be written from
 scratch against the `plat.h` contract below (there is no picoarch platform
-file to fork), but it can reuse verbatim, unmodified, the two pieces
-`pcsx_rearmed/frontend` already has working on this hardware:
+file to fork), but it can reuse the two pieces `pcsx_rearmed/frontend` already
+has working on this hardware:
 - `frontend/drm_out.c` / `frontend/drm_out.h` — raw-KMS 320x240 RGB565 dumb
   buffer, no libdrm, `drm_open()/drm_pixels()/drm_present()/drm_close()`.
 - `libpicofe/linux/in_evdev.c` (`in_evdev_init()`, prototyped at
-  `libpicofe/linux/in_evdev.h:3`) — evdev input, already used the same way in
+  `libpicofe/linux/in_evdev.h:3`) — evdev input, reusable as a starting point
+  but needs per-symbol verification (see §5: functional divergence between
+  picoarch's and pcsx_rearmed's copies). Already used the same way in
   `pcsx_rearmed/frontend/plat_erosq.c:334-335` (`in_evdev_init(&pdata);
   in_probe();`).
 
@@ -100,8 +102,9 @@ void plat_video_menu_leave(void);
 unsigned int plat_get_ticks_ms(void);
 ```
 
-`plat_video_menu_*` are called from `main.c:339,345,349` (MMENU path) and
-from libpicofe's own `menu.c`/`emu_action` flow; the SDL reference
+`plat_video_menu_*` are called from `main.c:345` (MMENU exit path) and
+from libpicofe's own `menu.c` (`menu.c:205,219,296,311,704,733`) and
+`libpicofe/menu.c` (`libpicofe/menu.c:435,458`); the SDL reference
 implementations are `plat_sdl.c:464-498`. They read/write four libpicofe
 globals declared `extern` in `libpicofe/menu.h:115-124`:
 `g_menuscreen_ptr`, `g_menubg_ptr`, `g_menubg_src_ptr`, `g_menuscreen_w`,
@@ -113,7 +116,7 @@ already does for its own, differently-shaped, plat contract).
 Input is not part of `plat_*` at all: `core.c`'s `pa_input_poll()`
 (`core.c:524-539`) calls libpicofe's own `in_update(actions)` /
 `in_get_config` / `in_get_dev_def_binds` / `in_bind_key`
-(`libpicofe/input.h:131,143,149`), so a port supplies input by calling
+(`libpicofe/input.h:132,139,143,149`), so a port supplies input by calling
 `in_evdev_init()` (or another libpicofe `in_*` driver) from inside
 `plat_init()`, not by implementing a `plat_input_*` symbol — this matches
 what `pcsx_rearmed/frontend/plat_erosq.c:334-335` already does.
@@ -177,15 +180,18 @@ folder name under `$SDCARD_PATH/Roms/`.
 
 | Path | Built at | Purpose |
 |---|---|---|
-| `$HOME/.picoarch-<core_name>-<tag_name>/` | `core.c:283`, `mkdir(...,0755)` at `core.c:284` | `config_dir`: global `picoarch.cfg` (`main.c:51`), per-ROM save states `<rom>.st<slot>` (`core.c:118-123`), per-ROM cheats `cheats/<rom>.cht` (`core.c:652`) |
-| `$SDCARD_PATH/Saves/<tag_name>/` | `core.c:289` | `save_dir`: per-ROM SRAM `<rom>.sav` (`core.c:69,98`), and — if a `<rom>.cfg` exists here — the **per-game config override** (`config_file_name()`, `main.c:46-53`, checked before falling back to the global `config_dir/picoarch.cfg`) |
+| `$HOME/.picoarch-<core_name>-<tag_name>/` | `core.c:283`, `mkdir(...,0755)` at `core.c:284` | `config_dir`: global `picoarch.cfg` (`core.c:51`), per-ROM save states `<rom>.st<slot>` (`core.c:118-123`), per-ROM cheats `cheats/<rom>.cht` (`core.c:652`) |
+| `$SDCARD_PATH/Saves/<tag_name>/` | `core.c:289` | `save_dir`: per-ROM SRAM `<rom>.sav` (`core.c:69,98`), and — if a `<rom>.cfg` exists here — the **per-game config override** (`config_file_name()`, `core.c:46-53`, checked before falling back to the global `config_dir/picoarch.cfg`) |
 | `$SDCARD_PATH/Bios/<tag_name>` | `core.c:290` | `system_dir`, exposed to cores via `RETRO_ENVIRONMENT_GET_SYSTEM_DIRECTORY` (`core.c:357-362`) |
 
 Also relevant: `RETRO_ENVIRONMENT_GET_SAVE_DIRECTORY` (`core.c:418-423`)
 returns the same `save_dir`. There is a build-time `PICO_HOME_DIR` macro
-(`Makefile:14`, `-DPICO_HOME_DIR='"/.picoarch/"'`) that is **defined but
-never referenced in any `.c` file** (`grep -rn PICO_HOME_DIR *.c` → no hits)
-— dead config, not a real override point; don't rely on it.
+(`Makefile:14`, `-DPICO_HOME_DIR='"/.picoarch/"'`) that is referenced in
+`libpicofe/linux/plat.c:84-94` (used by `plat_get_root_dir()`), but
+`plat_get_root_dir()` itself is never called anywhere in picoarch's own code
+(`grep -rn plat_get_root_dir picoarch --include=*.c` returns
+only the definition) — so while the macro technically has a reference
+upstream, it's not a real override point for picoarch; don't rely on it.
 
 Config file format is a flat `key = value\n` text file
 (`config.c:36-58,99-127`), containing both hardcoded frontend settings
