@@ -166,7 +166,7 @@ int unzip_tmp(FILE *zip, const char **extensions, char *filename, size_t len) {
 		base = base ? base + 1 : info.filename;
 		snprintf(filename, len, "/tmp/pa-XXXXXX%s", base);
 
-		fd = mkstemps(filename, strlen(info.filename));
+		fd = mkstemps(filename, strlen(base));
 		dest = fdopen(fd, "w");
 
 		if (!dest) {
