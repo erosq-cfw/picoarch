@@ -247,7 +247,11 @@ int hidden_file_filter(struct dirent **namelist, int count, const char *basedir)
 
 const char *select_content(void) {
 	const char *fname = NULL;
-	char content_path[MAX_PATH];
+	/* Zero-init: if none of the source branches below fire (no content, no
+	 * CONTENT_DIR env, CONTENT_DIR macro undefined, no HOME) the buffer would
+	 * otherwise be passed to menu_loop_romsel uninitialized. Also guarantees
+	 * NUL-termination for the strncpy(..., sizeof-1) truncation case. */
+	char content_path[MAX_PATH] = "";
 	const char **extensions = core_extensions();
 	const char **exts_with_zip = NULL;
 	int i = 0, size = 0;

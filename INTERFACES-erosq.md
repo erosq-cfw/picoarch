@@ -289,3 +289,22 @@ by a picoarch port:
   list).
 - **libpicofe provenance**: picoarch's vendored copy and pcsx_rearmed's are
   different forks; verify every symbol independently, don't assume parity.
+
+## 7. Build & runtime notes (erosq)
+
+- **Build the host binary target explicitly** — `make EROSQ=1 picoarch`, NOT
+  bare `make EROSQ=1`. The default `all:` target also builds `cores` (the
+  `CORES` list in the Makefile: pcsx_rearmed, picodrive, mgba, …) and passes
+  `platform=erosq` to their libretro Makefiles, which they don't recognize →
+  build failure. The erosq flow builds gambatte/gpsp out-of-tree
+  (`platform=unix`, see `cores/README.md`) and needs only the picoarch host
+  binary. Full command:
+  `PATH=<buildroot>/output/host/bin:$PATH make EROSQ=1 CROSS_COMPILE=mipsel-linux- picoarch -j4`.
+- **`RTLD_LAZY` correctness depends on musl** (`core.c:581`). picoarch relies
+  on `dlopen()` failing when a core leaves symbols unresolved (e.g. gpsp's
+  static-PIE soft-float helpers). That guarantee holds here only because
+  musl performs eager binding — it has no lazy PLT resolution, so `RTLD_LAZY`
+  behaves like `RTLD_NOW`. On a glibc target a missing helper would defer to
+  a call-time crash instead of a clean `dlopen` failure. This target is
+  musl-only, so it's correct as written; flagged for anyone porting the
+  frontend to a glibc libc.

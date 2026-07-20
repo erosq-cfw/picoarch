@@ -346,6 +346,12 @@ unsigned plat_cpu_ticks(void)
 static snd_pcm_t *pcm;
 static int pcm_rate;
 static snd_pcm_uframes_t pcm_buf_frames;
+/* ponytail: one-shot latch. Once ALSA open/config fails we stop retrying (and
+ * stop logging) for the rest of the run instead of hammering snd_pcm_open every
+ * audio callback. A healthy device opens once and never trips this; a broken
+ * one degrades silently rather than spamming stderr. No un-latch path — audio
+ * stays off until the process restarts, which is the intended ceiling. */
+static int audio_failed;
 
 static void audio_close(void)
 {
@@ -367,6 +373,8 @@ static int audio_open(int rate)
 		return -1;
 	if (pcm && rate == pcm_rate)
 		return 0;
+	if (audio_failed)
+		return -1;
 	audio_close();
 
 	dev = getenv("EROSQ_ALSA_DEV");
@@ -378,6 +386,7 @@ static int audio_open(int rate)
 		fprintf(stderr, "plat_erosq: snd_pcm_open(%s) failed: %s\n",
 			dev, snd_strerror(ret));
 		pcm = NULL;
+		audio_failed = 1;
 		return -1;
 	}
 	/* S16 interleaved stereo, soft-resample on, ~100ms latency */
@@ -389,6 +398,7 @@ static int audio_open(int rate)
 			snd_strerror(ret));
 		snd_pcm_close(pcm);
 		pcm = NULL;
+		audio_failed = 1;
 		return -1;
 	}
 	snd_pcm_get_params(pcm, &pcm_buf_frames, &period);
