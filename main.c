@@ -587,7 +587,10 @@ int main(int argc, char **argv) {
 		if (menu_select_content(content_path, sizeof(content_path)))
 			quit(0);
 		content_path[sizeof(content_path) - 1] = '\0';
-		get_tag_name(content_path, tag_name);
+		/* Note: tag_name (save/config dir suffix) was already fixed by
+		   core_open() above and is intentionally not recomputed here — with an
+		   empty tag, set_directories() yields one dir per core and
+		   content_based_name() disambiguates save files per-ROM by basename. */
 	}
 
 	content = content_init(content_path);
