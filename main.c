@@ -200,7 +200,13 @@ void set_defaults(void)
 	limit_frames = 1;
 	enable_audio = 1;
 	audio_buffer_size = 5;
+#ifdef EROSQ
+	/* Fill the 320x240 panel (aspect-preserving) instead of leaving small
+	 * cores like GBA 240x160 rendered native+centered with black borders. */
+	scale_size = SCALE_SIZE_ASPECT;
+#else
 	scale_size = SCALE_SIZE_NONE;
+#endif
 	// scale_filter = SCALE_FILTER_NEAREST;
 	scale_effect = default_scale_effect;
 	optimize_text = 1;

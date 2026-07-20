@@ -15,7 +15,13 @@ unsigned audio_buffer_size;
 enum scale_size scale_size;
 // enum scale_filter scale_filter;
 enum scale_effect scale_effect;
+#ifdef EROSQ
+/* EROS Q 320x240 SLCD: scanlines leave black gaps on this panel (the effect
+ * deliberately skips the upscale-duplicate rows) — default to a clean image. */
+enum scale_effect default_scale_effect = SCALE_EFFECT_NONE;
+#else
 enum scale_effect default_scale_effect = SCALE_EFFECT_SCANLINE;
+#endif
 int optimize_text;
 // int max_upscale;
 
