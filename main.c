@@ -530,6 +530,9 @@ static void get_tag_name(const char* in_path, char* out_tag) {
 int main(int argc, char **argv) {
 	char content_path[MAX_PATH];
 	char tag_name[MAX_PATH];
+	int have_rom = 0;
+
+	content_path[0] = '\0';
 
 	if (argc > 1) {
 		if (!strcmp(argv[1], "-h") || !strcmp(argv[1], "--help")) {
@@ -554,8 +557,10 @@ int main(int argc, char **argv) {
 	
 	if (argc > 2 && argv[2]) {
 		strncpy(content_path, argv[2], sizeof(content_path) - 1);
+		content_path[sizeof(content_path) - 1] = '\0';
+		have_rom = 1;
 	} else {
-		quit(-1);
+		have_rom = 0;
 	}
 	
 	if (argc > 3 && argv[3]) {
@@ -565,12 +570,24 @@ int main(int argc, char **argv) {
 		else default_scale_effect = SCALE_EFFECT_SCANLINE;
 	}
 	
-	get_tag_name(content_path, tag_name);
+	if (have_rom)
+		get_tag_name(content_path, tag_name);
+	else
+		tag_name[0] = '\0';
 
 	core_extract_name(core_path, core_name, sizeof(core_name));
 
 	if (core_open(core_path, tag_name)) {
 		quit(-1);
+	}
+
+	/* No ROM on the command line: open the startup ROM picker (rooted at
+	   CONTENT_DIR). Requires the core to be open for core_extensions(). */
+	if (!have_rom) {
+		if (menu_select_content(content_path, sizeof(content_path)))
+			quit(0);
+		content_path[sizeof(content_path) - 1] = '\0';
+		get_tag_name(content_path, tag_name);
 	}
 
 	content = content_init(content_path);

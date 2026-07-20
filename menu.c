@@ -711,7 +711,7 @@ void menu_loop(void)
 	
 	me_enable(e_menu_main, MA_MAIN_DISC_CTRL, needs_disc_ctrl);
 
-	me_enable(e_menu_main, MA_MAIN_CONTENT_SEL, false);
+	me_enable(e_menu_main, MA_MAIN_CONTENT_SEL, true);
 
 	// if (override)
 	// 	me_enable(e_menu_main, MA_MAIN_CONTENT_SEL, !override->block_load_content);
