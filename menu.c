@@ -540,6 +540,18 @@ static const char *men_scale_size[] = { "Native", "Aspect", "Full", NULL};
 // static const char *men_scale_filter[] = { "Nearest", "Sharp", "Smooth", NULL};
 static const char *men_scale_effect[] = { "None", "DMG", "LCD", "Scanline", NULL};
 
+#ifdef EROSQ
+/* DAC hardware volume (plat_erosq.c). The physical vol+/- buttons are the D-pad
+ * in-game, so volume lives here as a slider. Read live on menu-open, applied to
+ * the DAC as it changes. Not persisted in config — the hardware register is the
+ * source of truth (shared with the music UI). */
+int erosq_vol_get(void);
+void erosq_vol_set(int pct);
+static int hw_volume;          /* 0..100, edited by the slider */
+static int hw_volume_applied;  /* last value pushed to hardware */
+static const char h_volume[] = "Headphone/line-out volume (DAC hardware)";
+#endif
+
 static menu_entry e_menu_video_options[] =
 {
 	mee_onoff_h      ("Show FPS",                 0, show_fps, 1, h_show_fps),
@@ -551,6 +563,9 @@ static menu_entry e_menu_video_options[] =
 	mee_handler_id_h (             "", MA_VID_BLANK, NULL, NULL),
 	mee_onoff_h      ("Optimize text",            0, optimize_text, 1, h_optimize_text),
 	mee_onoff_h      ("Smooth scaling",           0, scale_smooth, 1, h_scale_smooth),
+#ifdef EROSQ
+	mee_range_h      ("Volume",                   0, hw_volume, 0, 100, h_volume),
+#endif
 	mee_range_h      ("Audio buffer",             0, audio_buffer_size, 1, 15, h_audio_buffer_size),
 	mee_end,
 };
@@ -559,14 +574,26 @@ static menu_entry e_menu_video_options[] =
 static void menu_loop_video_prep(void) {
 	me_enable(e_menu_video_options, MA_VID_FX, scale_size==SCALE_SIZE_NONE);
 	me_enable(e_menu_video_options, MA_VID_BLANK, scale_size!=SCALE_SIZE_NONE);
+#ifdef EROSQ
+	if (hw_volume != hw_volume_applied) {
+		erosq_vol_set(hw_volume);
+		hw_volume_applied = hw_volume;
+	}
+#endif
 }
 
 static int menu_loop_video_options(int id, int keys)
 {
 	static int sel = 0;
 
+#ifdef EROSQ
+	{
+		int v = erosq_vol_get();       /* seed slider from live hardware */
+		if (v >= 0) hw_volume = hw_volume_applied = v;
+	}
+#endif
 	menu_loop_video_prep();
-	
+
 	me_loop_d(e_menu_video_options, &sel, menu_loop_video_prep, NULL);
 	scale_update_scaler();
 

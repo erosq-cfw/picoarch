@@ -132,7 +132,7 @@ CFLAGS  += -DEROSQ -Iplat_erosq
 # (_flush_cache and the musl time64 symbols resolve from libc.so.)
 GCC_HELPERS = __fixdfdi __bswapsi2 __udivdi3 __divdi3 __umoddi3
 LDFLAGS := $(filter-out -lSDL -lpng12,$(LDFLAGS))
-LDFLAGS += -lasound -rdynamic $(foreach s,$(GCC_HELPERS),-Wl,-u,$(s)) -lgcc
+LDFLAGS += -lasound -ltinyalsa -rdynamic $(foreach s,$(GCC_HELPERS),-Wl,-u,$(s)) -lgcc
 # Disable LTO for EROSQ: whole-program LTO demotes the force-linked libgcc
 # helpers to LOCAL symbols, which -rdynamic then cannot export (the cores'
 # dlopen would fail to resolve them). Per-TU -Ofast still applies.

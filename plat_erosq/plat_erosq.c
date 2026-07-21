@@ -25,6 +25,7 @@
 #include <linux/input.h>
 #include <signal.h>
 #include <alsa/asoundlib.h>
+#include <tinyalsa/asoundlib.h>
 
 #include "libretro.h"
 #include "libpicofe/input.h"
@@ -137,6 +138,49 @@ static void dump_ppm(const uint16_t *src, int w, int h)
 	}
 	fclose(f);
 	fprintf(stderr, "shot: wrote /media/sd/picoarch/shot.ppm %dx%d\n", w, h);
+}
+
+/* DAC hardware volume via tinyalsa, mirroring erosq-ui's ui_mixer.c: card 0
+ * control "Playback Volume", range 0..255, 2 channels, higher = louder. Read
+ * live so the menu slider reflects whatever the music UI last set (the DAC
+ * register persists while erosq-ui is stopped for the emulator). Open/close per
+ * call — only hit on menu-open and on each slider tick, so lifecycle-free is
+ * fine. Exposed to the (shared) frontend menu under #ifdef EROSQ. */
+#define VOL_CARD 0
+#define VOL_CTL  "Playback Volume"
+static int vol_clampi(int v, int lo, int hi) { return v < lo ? lo : (v > hi ? hi : v); }
+
+int erosq_vol_get(void)
+{
+	struct mixer *m = mixer_open(VOL_CARD);
+	struct mixer_ctl *c;
+	int pct = -1;
+	if (!m) return -1;
+	c = mixer_get_ctl_by_name(m, VOL_CTL);
+	if (c) {
+		int lo = mixer_ctl_get_range_min(c), hi = mixer_ctl_get_range_max(c);
+		int v = mixer_ctl_get_value(c, 0);
+		if (hi > lo)
+			pct = ((vol_clampi(v, lo, hi) - lo) * 100 + (hi - lo) / 2) / (hi - lo);
+	}
+	mixer_close(m);
+	return pct;
+}
+
+void erosq_vol_set(int pct)
+{
+	struct mixer *m = mixer_open(VOL_CARD);
+	struct mixer_ctl *c;
+	if (!m) return;
+	c = mixer_get_ctl_by_name(m, VOL_CTL);
+	if (c) {
+		int lo = mixer_ctl_get_range_min(c), hi = mixer_ctl_get_range_max(c);
+		unsigned i, n = mixer_ctl_get_num_values(c);
+		int v = lo + (vol_clampi(pct, 0, 100) * (hi - lo) + 50) / 100;
+		for (i = 0; i < n; i++)
+			mixer_ctl_set_value(c, i, v);
+	}
+	mixer_close(m);
 }
 
 static void video_expire_msg(void)
