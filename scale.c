@@ -706,6 +706,15 @@ static void scale_select_scaler(unsigned w, unsigned h, size_t pitch) {
 	return;
 	
 nearest:
+	/* At true 1:1 (native) there are no spare output pixels, so the
+	 * optimize_text heuristic (repeat a bright edge pixel into the next
+	 * output slot) has nowhere to put it and instead overwrites the current
+	 * pixel with the previous one — smearing thin verticals (l, i, H). Only
+	 * the plain copy is correct when not upscaling. */
+	if (dst_w == w && dst_h == h) {
+		scaler = scaleNN;
+		return;
+	}
 	switch (scale_effect) {
 		case SCALE_EFFECT_SCANLINE: scaler = optimize_text ? scaleNN_text_scanline : scaleNN_scanline; break;
 		default: scaler = optimize_text ? scaleNN_text : scaleNN; break;

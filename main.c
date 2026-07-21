@@ -201,9 +201,10 @@ void set_defaults(void)
 	enable_audio = 1;
 	audio_buffer_size = 5;
 #ifdef EROSQ
-	/* Fill the 320x240 panel (aspect-preserving) instead of leaving small
-	 * cores like GBA 240x160 rendered native+centered with black borders. */
-	scale_size = SCALE_SIZE_ASPECT;
+	/* Native 1:1 (centered, bordered) — pixel-perfect text on the 320x240 panel.
+	 * Aspect-fill fills more screen but 1.333x nearest scaling mangles GBA text;
+	 * users can switch via Options -> Screen size. */
+	scale_size = SCALE_SIZE_NONE;
 #else
 	scale_size = SCALE_SIZE_NONE;
 #endif
@@ -512,25 +513,37 @@ static void adjust_audio(void) {
 }
 
 static void get_tag_name(const char* in_path, char* out_tag) {
-	char* tmp;
-	strcpy(out_tag, in_path);
-	tmp = out_tag;
+	/* MinUI layout is <SDCARD>/Roms/<PAK> (<core>)/game — the tag is the
+	 * parenthesised core name. Only valid when in_path is actually under
+	 * <SDCARD>/Roms/; other layouts (e.g. this device's /media/sd/games/<sys>/)
+	 * get an empty tag rather than a garbage substring. The old code advanced
+	 * blindly past strlen(".../Roms/") without checking the prefix matched. */
+	const char *sd = getenv("SDCARD_PATH");
 	char roms_path[MAX_PATH];
-	sprintf(roms_path, "%s/Roms/", getenv("SDCARD_PATH"));
-	
-	// extract just the Roms folder name
-	tmp += strlen(roms_path) + 1;
-	char* tmp2 = strchr(tmp, '/');
-	if (tmp2) tmp2[0] = '\0';
+	const char *open_paren, *close_paren;
+	size_t n;
 
-	// finally extract pak name from parenths if present
-	tmp = strchr(tmp, '(');
-	if (tmp) {
-		tmp += 1;
-		strcpy(out_tag, tmp);
-		tmp = strchr(out_tag,')');
-		tmp[0] = '\0';
-	}
+	out_tag[0] = '\0';
+	if (!sd)
+		return;
+
+	snprintf(roms_path, sizeof(roms_path), "%s/Roms/", sd);
+	if (strncmp(in_path, roms_path, strlen(roms_path)) != 0)
+		return;
+
+	open_paren = strchr(in_path + strlen(roms_path), '(');
+	if (!open_paren)
+		return;
+	open_paren++;
+	close_paren = strchr(open_paren, ')');
+	if (!close_paren)
+		return;
+
+	n = (size_t)(close_paren - open_paren);
+	if (n >= MAX_PATH)
+		n = MAX_PATH - 1;
+	memcpy(out_tag, open_paren, n);
+	out_tag[n] = '\0';
 }
 
 int main(int argc, char **argv) {

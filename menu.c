@@ -15,7 +15,14 @@ static struct dirent **corelist = NULL;
 static int corelist_len = 0;
 
 #define MENU_ALIGN_LEFT 0
+#ifdef EROSQ
+/* EROSQ blits the menu 1:1 to the native 320x240 panel (plat_erosq), unlike
+ * the SDL plats that render at 640x480 and hardware-downscale — so the 2x
+ * font would draw at true double size and overflow the panel. Use 1x. */
+#define MENU_X2 0
+#else
 #define MENU_X2 1
+#endif
 
 #define MENU_ITEMS_PER_PAGE 11
 

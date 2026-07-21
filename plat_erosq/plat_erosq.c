@@ -23,6 +23,7 @@
 #include <stdint.h>
 #include <unistd.h>
 #include <linux/input.h>
+#include <signal.h>
 #include <alsa/asoundlib.h>
 
 #include "libretro.h"
@@ -55,8 +56,8 @@ static const struct in_default_bind in_evdev_defbinds[] = {
 	{ KEY_VOLUMEDOWN,   IN_BINDTYPE_PLAYER12, RETRO_DEVICE_ID_JOYPAD_DOWN },
 	{ KEY_PREVIOUSSONG, IN_BINDTYPE_PLAYER12, RETRO_DEVICE_ID_JOYPAD_LEFT },
 	{ KEY_NEXTSONG,     IN_BINDTYPE_PLAYER12, RETRO_DEVICE_ID_JOYPAD_RIGHT },
-	{ KEY_PLAYPAUSE,    IN_BINDTYPE_PLAYER12, RETRO_DEVICE_ID_JOYPAD_B },
-	{ KEY_BACK,         IN_BINDTYPE_PLAYER12, RETRO_DEVICE_ID_JOYPAD_A },
+	{ KEY_PLAYPAUSE,    IN_BINDTYPE_PLAYER12, RETRO_DEVICE_ID_JOYPAD_A },
+	{ KEY_BACK,         IN_BINDTYPE_PLAYER12, RETRO_DEVICE_ID_JOYPAD_B },
 	{ KEY_MENU,         IN_BINDTYPE_EMU,      EACTION_MENU },
 	/* BT gamepad: face + shoulders + start/select + a HID d-pad */
 	{ BTN_DPAD_UP,      IN_BINDTYPE_PLAYER12, RETRO_DEVICE_ID_JOYPAD_UP },
@@ -112,6 +113,32 @@ static char msg[HUD_LEN];
 static unsigned msg_priority = 0;
 static unsigned msg_expire = 0;
 
+/* ponytail: SIGUSR1 -> dump the current 320x240 RGB565 shadow as a PPM, so
+ * headless/HITL sessions can SEE the panel (no fbdev, no wired screenshot on
+ * this build). Proven pattern lifted from the pcsx_rearmed erosq port: flag in
+ * the handler, write in the flip path (not signal context). PPM keeps it
+ * dependency-free. Debug tool — `kill -USR1 <picoarch>`, pull shot.ppm. */
+static volatile sig_atomic_t g_want_shot;
+static void shot_handler(int sig) { (void)sig; g_want_shot = 1; }
+static void dump_ppm(const uint16_t *src, int w, int h)
+{
+	FILE *f = fopen("/media/sd/picoarch/shot.ppm", "wb");
+	int i, n = w * h;
+	if (!f) return;
+	fprintf(f, "P6\n%d %d\n255\n", w, h);
+	for (i = 0; i < n; i++) {
+		uint16_t p = src[i];
+		unsigned char rgb[3] = {
+			(unsigned char)(((p >> 11) & 0x1f) << 3),
+			(unsigned char)(((p >> 5)  & 0x3f) << 2),
+			(unsigned char)(( p        & 0x1f) << 3),
+		};
+		fwrite(rgb, 1, 3, f);
+	}
+	fclose(f);
+	fprintf(stderr, "shot: wrote /media/sd/picoarch/shot.ppm %dx%d\n", w, h);
+}
+
 static void video_expire_msg(void)
 {
 	msg[0] = '\0';
@@ -129,6 +156,7 @@ static void video_update_msg(void)
 static void present_screen(void)
 {
 	int y;
+	if (g_want_shot) { g_want_shot = 0; dump_ppm(screen, SCREEN_WIDTH, SCREEN_HEIGHT); }
 	if (drm_stride == SCREEN_WIDTH) {
 		memcpy(drm_buf, screen, (size_t)SCREEN_WIDTH * SCREEN_HEIGHT * 2);
 	} else {
@@ -472,6 +500,8 @@ int plat_init(void)
 	g_menubg_src_h  = PANEL_H;
 	g_menubg_src_pp = PANEL_W;
 	g_menuscreen_ptr = NULL;
+
+	signal(SIGUSR1, shot_handler);   /* ponytail: kill -USR1 -> shot.ppm */
 
 	if (drm_open() != 0) {
 		PA_ERROR("plat_init: drm_open failed (another DRM master running? stop erosq-ui)\n");
