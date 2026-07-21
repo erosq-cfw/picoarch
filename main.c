@@ -201,12 +201,15 @@ void set_defaults(void)
 	enable_audio = 1;
 	audio_buffer_size = 5;
 #ifdef EROSQ
-	/* Native 1:1 (centered, bordered) — pixel-perfect text on the 320x240 panel.
-	 * Aspect-fill fills more screen but 1.333x nearest scaling mangles GBA text;
-	 * users can switch via Options -> Screen size. */
-	scale_size = SCALE_SIZE_NONE;
+	/* Aspect-fill + bilinear smoothing: fills the 320x240 panel while keeping
+	 * text legible (plain nearest at 1.333x mangles GBA text; native 1:1 is
+	 * sharp but small). Users can switch to Native/Full or turn smoothing off
+	 * via Options -> Video. */
+	scale_size = SCALE_SIZE_ASPECT;
+	scale_smooth = 1;
 #else
 	scale_size = SCALE_SIZE_NONE;
+	scale_smooth = 0;
 #endif
 	// scale_filter = SCALE_FILTER_NEAREST;
 	scale_effect = default_scale_effect;
