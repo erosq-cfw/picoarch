@@ -31,6 +31,7 @@ static const struct {
 	// CE_NUM(scale_filter),
 	CE_NUM(scale_effect),
 	CE_NUM(optimize_text),
+	CE_NUM(scale_smooth),
 };
 
 void config_write(FILE *f)

@@ -23,6 +23,7 @@ enum scale_effect default_scale_effect = SCALE_EFFECT_NONE;
 enum scale_effect default_scale_effect = SCALE_EFFECT_SCANLINE;
 #endif
 int optimize_text;
+int scale_smooth;
 // int max_upscale;
 
 struct core_options core_options;

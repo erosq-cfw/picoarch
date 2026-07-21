@@ -531,6 +531,11 @@ static const char h_optimize_text[]        =
 	"prioritize a consistent stroke size for\n"
 	"text. May affect non-text content.";
 
+static const char h_scale_smooth[]        =
+	"Bilinear-blend the image when filling the\n"
+	"screen (Aspect/Full). Softer but keeps text\n"
+	"legible. No effect at Native.";
+
 static const char *men_scale_size[] = { "Native", "Aspect", "Full", NULL};
 // static const char *men_scale_filter[] = { "Nearest", "Sharp", "Smooth", NULL};
 static const char *men_scale_effect[] = { "None", "DMG", "LCD", "Scanline", NULL};
@@ -545,6 +550,7 @@ static menu_entry e_menu_video_options[] =
 	mee_enum_h       ("Screen effect",    MA_VID_FX, scale_effect, men_scale_effect, h_scale_effect),
 	mee_handler_id_h (             "", MA_VID_BLANK, NULL, NULL),
 	mee_onoff_h      ("Optimize text",            0, optimize_text, 1, h_optimize_text),
+	mee_onoff_h      ("Smooth scaling",           0, scale_smooth, 1, h_scale_smooth),
 	mee_range_h      ("Audio buffer",             0, audio_buffer_size, 1, 15, h_audio_buffer_size),
 	mee_end,
 };

@@ -595,6 +595,51 @@ static void scaleNN_text_scanline(unsigned w, unsigned h, size_t pitch, const vo
 	}
 }
 
+/* Bilinear scaler for the fill modes (aspect/full). Non-integer nearest
+ * upscaling (e.g. GBA 240x160 -> 320x213) mangles thin text strokes; bilinear
+ * blends the 4 neighbours so text stays legible at the cost of some blur.
+ * Opt-in via the "Smooth scaling" option; native (1:1) never reaches here.
+ * Fixed-point: 16.16 source position, 8-bit blend weights kept <=256 so the
+ * 4-tap weight products stay inside u32 (256*256 == 65536). */
+static void scaleNN_bilinear(unsigned w, unsigned h, size_t pitch, const void *src, void *dst) {
+	const uint16_t *psrc = src;
+	unsigned src_pp = pitch / SCREEN_BPP;
+	/* edge-to-edge mapping: dst 0..dst_w-1 spans src 0..w-1 */
+	uint32_t step_x = dst_w > 1 ? ((w - 1) << 16) / (dst_w - 1) : 0;
+	uint32_t step_y = dst_h > 1 ? ((h - 1) << 16) / (dst_h - 1) : 0;
+	unsigned oy, ox;
+
+	dst += dst_offs;
+
+	for (oy = 0; oy < dst_h; oy++) {
+		uint32_t yf = oy * step_y;
+		unsigned y0 = yf >> 16;
+		unsigned y1 = y0 + 1 < h ? y0 + 1 : y0;
+		uint32_t wy = (yf >> 8) & 0xff, iwy = 256 - wy;
+		const uint16_t *row0 = psrc + (size_t)y0 * src_pp;
+		const uint16_t *row1 = psrc + (size_t)y1 * src_pp;
+		uint16_t *pdst = (uint16_t *)((char *)dst + (size_t)oy * SCREEN_PITCH);
+
+		for (ox = 0; ox < dst_w; ox++) {
+			uint32_t xf = ox * step_x;
+			unsigned x0 = xf >> 16;
+			unsigned x1 = x0 + 1 < w ? x0 + 1 : x0;
+			uint32_t wx = (xf >> 8) & 0xff, iwx = 256 - wx;
+			uint32_t w00 = iwx * iwy, w01 = wx * iwy;
+			uint32_t w10 = iwx * wy,  w11 = wx * wy;
+			uint16_t p00 = row0[x0], p01 = row0[x1];
+			uint16_t p10 = row1[x0], p11 = row1[x1];
+			uint32_t r = (((p00 >> 11) & 0x1f) * w00 + ((p01 >> 11) & 0x1f) * w01
+			            + ((p10 >> 11) & 0x1f) * w10 + ((p11 >> 11) & 0x1f) * w11) >> 16;
+			uint32_t g = (((p00 >> 5) & 0x3f) * w00 + ((p01 >> 5) & 0x3f) * w01
+			            + ((p10 >> 5) & 0x3f) * w10 + ((p11 >> 5) & 0x3f) * w11) >> 16;
+			uint32_t b = ((p00 & 0x1f) * w00 + (p01 & 0x1f) * w01
+			            + (p10 & 0x1f) * w10 + (p11 & 0x1f) * w11) >> 16;
+			*pdst++ = (uint16_t)((r << 11) | (g << 5) | b);
+		}
+	}
+}
+
 static void scale_select_scaler(unsigned w, unsigned h, size_t pitch) {
 	scaler = scale_null;
 	if (w == 0 || h == 0 || pitch == 0) return;
@@ -713,6 +758,10 @@ nearest:
 	 * the plain copy is correct when not upscaling. */
 	if (dst_w == w && dst_h == h) {
 		scaler = scaleNN;
+		return;
+	}
+	if (scale_smooth) {
+		scaler = scaleNN_bilinear;
 		return;
 	}
 	switch (scale_effect) {
