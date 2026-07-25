@@ -10,6 +10,7 @@
 #include "cheat.h"
 #include "core.h"
 #include "libpicofe/input.h"
+#include "libpicofe/linux/in_evdev.h"
 #include "main.h"
 #include "options.h"
 #include "overrides.h"
@@ -527,6 +528,12 @@ static void pa_input_poll(void) {
 	int which = EACTION_NONE;
 
 	in_update(actions);
+	/* A BT pad's evdev node comes and goes with the connection, so re-probe
+	 * when the device set changes -- otherwise the pad stays dead until
+	 * picoarch is restarted. Must be outside in_update(): in_probe() frees the
+	 * driver data that loop is walking. */
+	if (in_evdev_hotplug_check())
+		in_probe();
 	emu_act = actions[IN_BINDTYPE_EMU];
 	if (emu_act) {
 		for (; !(emu_act & 1); emu_act >>= 1, which++)
