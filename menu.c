@@ -550,6 +550,19 @@ void erosq_vol_set(int pct);
 static int hw_volume;          /* 0..100, edited by the slider */
 static int hw_volume_applied;  /* last value pushed to hardware */
 static const char h_volume[] = "Headphone/line-out volume (DAC hardware)";
+static void hw_volume_prep(void)
+{
+	if (hw_volume != hw_volume_applied) {
+		erosq_vol_set(hw_volume);
+		hw_volume_applied = hw_volume;
+	}
+}
+/* Re-read on every menu open: erosq-ui may have moved the DAC since. */
+static void hw_volume_seed(void)
+{
+	int v = erosq_vol_get();
+	if (v >= 0) hw_volume = hw_volume_applied = v;
+}
 #endif
 
 static menu_entry e_menu_video_options[] =
@@ -575,10 +588,7 @@ static void menu_loop_video_prep(void) {
 	me_enable(e_menu_video_options, MA_VID_FX, scale_size==SCALE_SIZE_NONE);
 	me_enable(e_menu_video_options, MA_VID_BLANK, scale_size!=SCALE_SIZE_NONE);
 #ifdef EROSQ
-	if (hw_volume != hw_volume_applied) {
-		erosq_vol_set(hw_volume);
-		hw_volume_applied = hw_volume;
-	}
+	hw_volume_prep();
 #endif
 }
 
@@ -587,10 +597,7 @@ static int menu_loop_video_options(int id, int keys)
 	static int sel = 0;
 
 #ifdef EROSQ
-	{
-		int v = erosq_vol_get();       /* seed slider from live hardware */
-		if (v >= 0) hw_volume = hw_volume_applied = v;
-	}
+	hw_volume_seed();
 #endif
 	menu_loop_video_prep();
 
@@ -690,6 +697,10 @@ static int main_menu_handler(int id, int keys)
 
 static menu_entry e_menu_main[] =
 {
+#ifdef EROSQ
+	/* Same slider as Options > Video, surfaced to the top level */
+	mee_range_h   ("Volume",             0, hw_volume, 0, 100, h_volume),
+#endif
 	mee_handler_id("Resume game",        MA_MAIN_RESUME_GAME, main_menu_handler),
 	mee_handler_id("Save state",         MA_MAIN_SAVE_STATE,  main_menu_handler),
 	mee_handler_id("Load state",         MA_MAIN_LOAD_STATE,  main_menu_handler),
@@ -766,7 +777,14 @@ void menu_loop(void)
 		me_enable(e_menu_main, MA_MAIN_LOAD_STATE, mmenu == NULL);
 	}
 #endif
+#ifdef EROSQ
+	hw_volume_seed();
+	/* Open on "Resume game" so Play resumes, even though Volume is row 0 */
+	sel = me_id2offset(e_menu_main, MA_MAIN_RESUME_GAME);
+	me_loop_d(e_menu_main, &sel, hw_volume_prep, NULL);
+#else
 	me_loop(e_menu_main, &sel);
+#endif
 
 	/* wait until menu, ok, back is released */
 	while (in_menu_wait_any(NULL, 50) & (PBTN_MENU|PBTN_MOK|PBTN_MBACK))
