@@ -1,6 +1,7 @@
 [submodule "libpicofe"]
 	path = libpicofe
-	url = https://github.com/notaz/libpicofe
+	url = https://github.com/erosq-cfw/libpicofe
+	branch = erosq-picoarch
 [submodule "libretro-common"]
 	path = libretro-common
 	url = https://github.com/libretro/libretro-common
