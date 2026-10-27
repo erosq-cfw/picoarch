@@ -4,7 +4,7 @@ Discovery spike for pcsx_rearmed-style in-game-menu work on the EROS Q
 (Ingenic X1000, 32MB RAM, musl, no GPU, 320x240 SLCD, raw-DRM only — SDL2 on
 this device is `video=dummy` and cannot render).
 
-Repo: `picoarch`, upstream `https://github.com/shauninman/picoarch`.
+Repo: this picoarch fork, upstream `https://github.com/shauninman/picoarch`.
 **Pinned commit: `802047c276a5a931b0bf837c4ea4b8e238bdeabe`** (2022-03-16 00:00:04 -0400).
 Submodules (recorded in this commit's `.gitmodules` / gitlinks, fetched via
 `git submodule update --init --recursive`):
@@ -49,7 +49,7 @@ an existing one".
 
 ## 1. The `plat_*` contract a port must implement
 
-Full interface declared in `picoarch/plat.h:1-36` (picoarch's
+Full interface declared in `plat.h:1-36` (picoarch's
 own, distinct from `libpicofe/plat.h`, which it `#include`s at line 4):
 
 ```c
@@ -189,7 +189,7 @@ returns the same `save_dir`. There is a build-time `PICO_HOME_DIR` macro
 (`Makefile:14`, `-DPICO_HOME_DIR='"/.picoarch/"'`) that is referenced in
 `libpicofe/linux/plat.c:84-94` (used by `plat_get_root_dir()`), but
 `plat_get_root_dir()` itself is never called anywhere in picoarch's own code
-(`grep -rn plat_get_root_dir picoarch --include=*.c` returns
+(`grep -rn plat_get_root_dir . --include=*.c` returns
 only the definition) — so while the macro technically has a reference
 upstream, it's not a real override point for picoarch; don't rely on it.
 

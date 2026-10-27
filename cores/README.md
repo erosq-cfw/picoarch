@@ -1,17 +1,18 @@
 # Cores (built out-of-tree, not committed)
 
-`*.so` is gitignored repo-wide (see `picoarch/.gitignore`), so
+`*.so` is gitignored repo-wide (see the repo-root `.gitignore`), so
 the built core binaries in this directory are **not** tracked in git. This
-file documents how to reproduce them.
+file documents how to reproduce them. `$EROSQ_ROOT` is the directory that
+holds the sibling checkouts (gbemu/, buildroot-*/); `$PICOARCH` is this repo.
 
 ## gpsp (GBA) — `gpsp_libretro.so`
 
 Pre-built, not compiled as part of this task. Source: notaz's gpsp libretro
-fork (MIPS dynarec) at `gbemu/gpsp` (its own git clone,
+fork (MIPS dynarec) at `$EROSQ_ROOT/gbemu/gpsp` (its own git clone,
 remote-tracked independently of picoarch/gbemu).
 
 ```
-cp gbemu/gpsp/gpsp_libretro.so picoarch/cores/
+cp "$EROSQ_ROOT"/gbemu/gpsp/gpsp_libretro.so cores/
 ```
 
 Verified MIPS32 ELF shared object (`static-pie linked`):
@@ -36,16 +37,16 @@ symbols.
 
 ## gambatte (GB/GBC) — `gambatte_libretro.so`
 
-Built from source at `gbemu/gambatte` (own git clone of
+Built from source at `$EROSQ_ROOT/gbemu/gambatte` (own git clone of
 `https://github.com/libretro/gambatte-libretro`, HEAD `dfc1655`), cross-compiled
 for mipsel-musl with the buildroot toolchain.
 
 ```bash
-cd gbemu/gambatte
-PATH=buildroot-2026.05/output/host/bin:$PATH \
+cd "$EROSQ_ROOT"/gbemu/gambatte
+PATH="$EROSQ_ROOT"/buildroot-2026.05/output/host/bin:$PATH \
   make -f Makefile.libretro platform=unix \
        CC=mipsel-linux-gcc CXX=mipsel-linux-g++ -j4
-cp gambatte_libretro.so picoarch/cores/
+cp gambatte_libretro.so "$PICOARCH"/cores/
 ```
 
 Toolchain triple: `mipsel-linux-gcc`/`mipsel-linux-g++` are symlinks
@@ -77,7 +78,3 @@ file gambatte_libretro.so
 
 `retro_api_version()` confirmed live under `qemu-mipsel-static` (dlopen +
 dlsym harness against the buildroot musl sysroot): returns **1**.
-
-## Full build/verify log
-
-See `picoarch/.superpowers/task-2-report.md`.
